@@ -151,18 +151,55 @@ impl Chip8 {
         // run instructions
         match first_nibble {
             0x0 => {
-                // clear screen
-                for y in 0..32usize {
-                    for x in 0..64usize {
-                        self.display[y][x] = false;
+                if instruction == 0xE0 {
+                    // clear screen
+                    for y in 0..32usize {
+                        for x in 0..64usize {
+                            self.display[y][x] = false;
+                        }
                     }
+                    self.refresh_display = true;
+                    return;
                 }
-                self.refresh_display = true;
-                return;
+                else {
+                    // return for subroutine
+                    self.pc = self.stack.pop().unwrap();
+                    return;
+                }
             }
             0x1 => {
                 // jump
                 self.pc = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
+                return;
+            }
+            0x2 => {
+                // call subroutine
+                self.stack.push(self.pc);
+                self.pc = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
+                return;
+            }
+            0x3 => {
+                // skip if VX == NN
+                let reg = get_reg_adrr!(self, second_nibble);
+                if *reg == (third_nibble << 4) | fourth_nibble {
+                    self.pc += 2;
+                }
+                return;
+            }
+            0x4 => {
+                // skip if VX != NN
+                let reg = get_reg_adrr!(self, second_nibble);
+                if *reg != (third_nibble << 4) | fourth_nibble {
+                    self.pc += 2;
+                }
+                return;
+            }
+            0x5 => {
+                let x = *get_reg_adrr!(self, second_nibble);
+                let y = *get_reg_adrr!(self, third_nibble);
+                if x == y {
+                    self.pc +=2;
+                }
                 return;
             }
             0x6 => {
@@ -175,6 +212,14 @@ impl Chip8 {
                 // add NN to vx
                 let reg = get_reg_adrr!(self, second_nibble);
                 *reg += (third_nibble << 4) | fourth_nibble;
+                return;
+            }
+            0x9 => {
+                let x = *get_reg_adrr!(self, second_nibble);
+                let y = *get_reg_adrr!(self, third_nibble);
+                if x != y {
+                    self.pc +=2;
+                }
                 return;
             }
             0xA => {
@@ -210,6 +255,7 @@ impl Chip8 {
                         break;
                     }
                 }
+                return;
             }
             _ => {
                 eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
