@@ -174,7 +174,7 @@ impl Chip8 {
                     0x6 => {
                         // VX = VY >> 1
                         self.registers[second_nibble as usize] = self.registers[third_nibble as usize] >> 1;
-                        self.registers[0xF] = self.registers[second_nibble as usize] & 0x8000;
+                        self.registers[0xF] = self.registers[second_nibble as usize] & 0x80;
                     }
                     0x7 => {
                         // VX = VY - VX
