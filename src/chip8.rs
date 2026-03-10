@@ -16,29 +16,6 @@ const FONT: [u8; 80] = [
 0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
 0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
-macro_rules! get_reg_adrr {
-    ($self:expr, $nibble:expr) => {{
-        match $nibble {
-            0x0 => &mut $self.v0,
-            0x1 => &mut $self.v1,
-            0x2 => &mut $self.v2,
-            0x3 => &mut $self.v3,
-            0x4 => &mut $self.v4,
-            0x5 => &mut $self.v5,
-            0x6 => &mut $self.v6,
-            0x7 => &mut $self.v7,
-            0x8 => &mut $self.v8,
-            0x9 => &mut $self.v9,
-            0xA => &mut $self.va,
-            0xB => &mut $self.vb,
-            0xC => &mut $self.vc,
-            0xD => &mut $self.vd,
-            0xE => &mut $self.ve,
-            0xF => &mut $self.vf,
-            _ => unreachable!("all nibbles should be 4 bit values")
-        }
-    }};
-}
 pub struct Chip8 {
     mem: [u8; 4096], // 4kb memory used by programs
     pub display: [[bool; 64]; 32], // 64 x 32 display eiter on (true) or off (false)
@@ -47,23 +24,7 @@ pub struct Chip8 {
     i: u16, // register for pointing at memory
     pub delay_timer: u8, // delay timer
     pub sound_timer: u8, // sound timer
-    // register all 8 bit
-    v0: u8,
-	v1: u8,
-	v2: u8,
-	v3: u8,
-	v4: u8,
-	v5: u8,
-	v6: u8,
-	v7: u8,
-	v8: u8,
-	v9: u8,
-	va: u8,
-	vb: u8,
-	vc: u8,
-	vd: u8,
-	ve: u8,
-	vf: u8,
+    registers: [u8; 16], // 8-bit registers
 	pub refresh_display: bool
 }
 impl Chip8 {
@@ -91,25 +52,10 @@ impl Chip8 {
         // set register i
         let i = 0u16;
         // set timer
-        let sound_timer = 255u8;
-        let delay_timer = 255u8;
+        let sound_timer = 0u8;
+        let delay_timer = 0u8;
+        let registers = [0u8; 16];
         // set registers to 0
-        let v0 = 0u8;
-		let v1 = 0u8;
-		let v2 = 0u8;
-		let v3 = 0u8;
-		let v4 = 0u8;
-		let v5 = 0u8;
-		let v6 = 0u8;
-		let v7 = 0u8;
-		let v8 = 0u8;
-		let v9 = 0u8;
-		let va = 0u8;
-		let vb = 0u8;
-		let vc = 0u8;
-		let vd = 0u8;
-		let ve = 0u8;
-		let vf = 0u8;
 		let refresh_display = false;
 		// return full struct
 		Chip8 { 
@@ -119,23 +65,8 @@ impl Chip8 {
 			pc, 
 			i, 
 			delay_timer, 
-			sound_timer, 
-			v0, 
-			v1, 
-			v2, 
-			v3, 
-			v4, 
-			v5, 
-			v6, 
-			v7, 
-			v8, 
-			v9, 
-			va, 
-			vb, 
-			vc, 
-			vd, 
-			ve, 
-			vf,
+			sound_timer,
+			registers,
 			refresh_display
 		}
     }
@@ -180,44 +111,38 @@ impl Chip8 {
             }
             0x3 => {
                 // skip if VX == NN
-                let reg = get_reg_adrr!(self, second_nibble);
-                if *reg == (third_nibble << 4) | fourth_nibble {
+                if self.registers[second_nibble as usize] == (third_nibble << 4) | fourth_nibble {
                     self.pc += 2;
                 }
                 return;
             }
             0x4 => {
                 // skip if VX != NN
-                let reg = get_reg_adrr!(self, second_nibble);
-                if *reg != (third_nibble << 4) | fourth_nibble {
+                if self.registers[second_nibble as usize] != (third_nibble << 4) | fourth_nibble {
                     self.pc += 2;
                 }
                 return;
             }
             0x5 => {
-                let x = *get_reg_adrr!(self, second_nibble);
-                let y = *get_reg_adrr!(self, third_nibble);
-                if x == y {
+                // jump if VX == VY
+                if self.registers[second_nibble as usize] == self.registers[third_nibble as usize] {
                     self.pc +=2;
                 }
                 return;
             }
             0x6 => {
                 // set vx to NN
-                let reg = get_reg_adrr!(self, second_nibble);
-                *reg = (third_nibble << 4) | fourth_nibble;
+                self.registers[second_nibble as usize] = (third_nibble << 4) | fourth_nibble;
                 return;
             }
             0x7 => {
                 // add NN to vx
-                let reg = get_reg_adrr!(self, second_nibble);
-                *reg += (third_nibble << 4) | fourth_nibble;
+                self.registers[second_nibble as usize] += (third_nibble << 4) | fourth_nibble;
                 return;
             }
             0x9 => {
-                let x = *get_reg_adrr!(self, second_nibble);
-                let y = *get_reg_adrr!(self, third_nibble);
-                if x != y {
+                // jump if VX != VY
+                if self.registers[second_nibble as usize] != self.registers[third_nibble as usize] {
                     self.pc +=2;
                 }
                 return;
@@ -229,9 +154,9 @@ impl Chip8 {
             }
             0xD => {
                 // draw sprite to screen
-                let x_start = *get_reg_adrr!(self, second_nibble) % 64;
-                let mut y = *get_reg_adrr!(self, third_nibble) % 32;
-                self.vf = 0;
+                let x_start = self.registers[second_nibble as usize] % 64;
+                let mut y = self.registers[third_nibble as usize] % 32;
+                self.registers[0xF] = 0;
                 self.refresh_display = true;
                 for j in 0..fourth_nibble {
                     let byte = self.mem[(self.i + j as u16) as usize];
@@ -243,7 +168,7 @@ impl Chip8 {
                         let pixel = (byte >> s) & 0x1;
                         if pixel == 1 && self.display[y as usize][x as usize] {
                             self.display[y as usize][x as usize] = false;
-                            self.vf = 1;
+                            self.registers[0xF] = 1;
                         }
                         else if pixel == 1 && !self.display[y as usize][x as usize] {
                             self.display[y as usize][x as usize] = true;
