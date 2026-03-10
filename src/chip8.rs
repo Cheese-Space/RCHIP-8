@@ -25,7 +25,7 @@ pub struct Chip8 {
     pub delay_timer: u8, // delay timer
     pub sound_timer: u8, // sound timer
     registers: [u8; 16], // 8-bit registers
-	pub refresh_display: bool
+	pub refresh_display: bool // if true, display will be refreshed
 }
 impl Chip8 {
     pub fn init(program: &[u8]) -> Chip8 {
@@ -90,67 +90,122 @@ impl Chip8 {
                         }
                     }
                     self.refresh_display = true;
-                    return;
                 }
                 else {
                     // return for subroutine
                     self.pc = self.stack.pop().unwrap();
-                    return;
                 }
             }
             0x1 => {
                 // jump
                 self.pc = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
-                return;
             }
             0x2 => {
                 // call subroutine
                 self.stack.push(self.pc);
                 self.pc = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
-                return;
             }
             0x3 => {
                 // skip if VX == NN
                 if self.registers[second_nibble as usize] == (third_nibble << 4) | fourth_nibble {
                     self.pc += 2;
                 }
-                return;
             }
             0x4 => {
                 // skip if VX != NN
                 if self.registers[second_nibble as usize] != (third_nibble << 4) | fourth_nibble {
                     self.pc += 2;
                 }
-                return;
             }
             0x5 => {
                 // jump if VX == VY
                 if self.registers[second_nibble as usize] == self.registers[third_nibble as usize] {
                     self.pc +=2;
                 }
-                return;
             }
             0x6 => {
                 // set vx to NN
                 self.registers[second_nibble as usize] = (third_nibble << 4) | fourth_nibble;
-                return;
             }
             0x7 => {
                 // add NN to vx
                 self.registers[second_nibble as usize] += (third_nibble << 4) | fourth_nibble;
-                return;
+            }
+            0x8 => {
+                // mathmatical and logical functions
+                match fourth_nibble {
+                    0x0 => {
+                        // VX = VY
+                        self.registers[second_nibble as usize] = self.registers[third_nibble as usize];
+                    }
+                    0x1 => {
+                        // VX |= VY
+                        self.registers[second_nibble as usize] |= self.registers[third_nibble as usize];
+                    }
+                    0x2 => {
+                        // VX &= VY
+                        self.registers[second_nibble as usize] &= self.registers[third_nibble as usize];
+                    }
+                    0x3 => {
+                        // VX ^= VY
+                        self.registers[second_nibble as usize] ^= self.registers[third_nibble as usize];
+                    }
+                    0x4 => {
+                        // vx += VY
+                        let old_x = self.registers[second_nibble as usize];
+                        self.registers[second_nibble as usize] = self.registers[second_nibble as usize].wrapping_add(self.registers[third_nibble as usize]);
+                        if self.registers[second_nibble as usize] > old_x {
+                            self.registers[0xF] = 1;
+                        }
+                        else {
+                            self.registers[0xF] = 0;
+                        }
+                    }
+                    0x5 => {
+                        // VX -= VY
+                        if self.registers[second_nibble as usize] > self.registers[third_nibble as usize] {
+                            self.registers[0xF] = 1;
+                        }
+                        else if self.registers[second_nibble as usize] < self.registers[third_nibble as usize] {
+                            self.registers[0xF] = 0;
+                        }
+                        self.registers[second_nibble as usize] = self.registers[second_nibble as usize].wrapping_sub(self.registers[third_nibble as usize]);
+                    }
+                    0x6 => {
+                        // VX = VY >> 1
+                        self.registers[second_nibble as usize] = self.registers[third_nibble as usize] >> 1;
+                        self.registers[0xF] = self.registers[second_nibble as usize] & 0x8000;
+                    }
+                    0x7 => {
+                        // VX = VY - VX
+                        if self.registers[second_nibble as usize] > self.registers[third_nibble as usize] {
+                            self.registers[0xF] = 0;
+                        }
+                        else if self.registers[second_nibble as usize] < self.registers[third_nibble as usize] {
+                            self.registers[0xF] = 1;
+                        }
+                        self.registers[second_nibble as usize] = self.registers[third_nibble as usize].wrapping_sub(self.registers[second_nibble as usize]);
+                    }
+                    0xE => {
+                        // VX = VY << 1
+                        self.registers[second_nibble as usize] = self.registers[third_nibble as usize] << 1;
+                        self.registers[0xF] = self.registers[second_nibble as usize] & 0x1;
+                    }
+                    _ => {
+                        eprintln!("unrecognised instruction: 0x{:x}", instruction);
+                        std::process::exit(1);
+                    }
+                }
             }
             0x9 => {
                 // jump if VX != VY
                 if self.registers[second_nibble as usize] != self.registers[third_nibble as usize] {
                     self.pc +=2;
                 }
-                return;
             }
             0xA => {
                 // set index register
                 self.i = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
-                return;
             }
             0xD => {
                 // draw sprite to screen
@@ -180,7 +235,6 @@ impl Chip8 {
                         break;
                     }
                 }
-                return;
             }
             _ => {
                 eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);

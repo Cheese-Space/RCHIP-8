@@ -17,7 +17,7 @@ fn main() -> ExitCode {
     let buff = match fs::read(&filename) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("failed to open {filename}: {}", e.to_string());
+            eprintln!("failed to open {filename}: {}", e);
             return ExitCode::FAILURE;
         }
     };
