@@ -21,7 +21,7 @@ const FONT: [u8; 80] = [
 pub struct Chip8 {
     mem: [u8; 4096], // 4kb memory used by programs
     pub display: [[bool; 64]; 32], // 64 x 32 display eiter on (true) or off (false)
-    stack: Vec<u16>, // stack for returning from functions
+    return_stack: Vec<u16>, // stack for returning from functions
     pc: u16, // program counter
     i: u16, // register for pointing at memory
     pub delay_timer: u8, // delay timer
@@ -36,8 +36,8 @@ impl Chip8 {
         let mut mem = [0u8; 4096];
         // init display
         let display = [[false; 64]; 32];
-        // setup stack and check program len
-        let stack: Vec<u16> = Vec::new();
+        // setup return_stack and check program len
+        let return_stack: Vec<u16> = Vec::new();
         if 4096 - 512 < program.len() {
             eprintln!("error: program is too large!");
             std::process::exit(1);
@@ -65,7 +65,7 @@ impl Chip8 {
 		Chip8 { 
 		    mem, 
 			display, 
-			stack, 
+			return_stack, 
 			pc, 
 			i, 
 			delay_timer, 
@@ -98,7 +98,7 @@ impl Chip8 {
                 }
                 else {
                     // return for subroutine
-                    self.pc = self.stack.pop().unwrap();
+                    self.pc = self.return_stack.pop().unwrap();
                 }
             }
             0x1 => {
@@ -107,7 +107,7 @@ impl Chip8 {
             }
             0x2 => {
                 // call subroutine
-                self.stack.push(self.pc);
+                self.return_stack.push(self.pc);
                 self.pc = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
             }
             0x3 => {
