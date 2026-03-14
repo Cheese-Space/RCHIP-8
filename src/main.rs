@@ -1,12 +1,37 @@
 mod chip8;
-use std::{env, fs, process::ExitCode};
+use std::io;
+use std::{env, fs, process::ExitCode, fmt};
 use crate::chip8::Chip8;
 use sdl3::event::Event;
 use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
 use sdl3::rect::Rect;
 use std::time::{Instant, Duration};
+pub enum EmulatorError {
+    SdlInit(sdl3::Error),
+    VSubsystem(sdl3::Error),
+    Window(sdl3::video::WindowBuildError),
+    Io{filename: String, err: io::Error},
+    ProgramTooLarge,
+    EmptyReturnStack,
+    InvalidInstruction(u16)
+}
+// displayed when returned from main
+impl fmt::Debug for EmulatorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SdlInit(err) => write!(f, "failed to init sdl: {}", err),
+            Self::VSubsystem(err) => write!(f, "failed to init sdl's video subsystem: {}", err),
+            Self::Window(err) => write!(f, "failed to create window: {}", err),
+            Self::Io { filename, err } => write!(f, "failed to open {}: {}", filename, err),
+            Self::ProgramTooLarge => write!(f, "program is too large (limit is 3584 bytes)"),
+            Self::EmptyReturnStack => write!(f, "tried to get return adress from empty return stack"),
+            Self::InvalidInstruction(instruction) => write!(f, "invalid or unimplemented instruction: {}", instruction)
+        }
+    }
+}
 fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
+    // uses the layout of the cosmac vip and hp 48
     match code {
         Scancode::_1 => machine.keys[0x1] = pressed,
         Scancode::_2 => machine.keys[0x2] = pressed,
@@ -49,7 +74,7 @@ fn main() -> ExitCode {
             .position_centered()
             .build()
             .unwrap();
-        let mut event_pump = sdl_context.event_pump().unwrap();
+        let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
         let mut canvas = window.into_canvas();
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
