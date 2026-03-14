@@ -1,3 +1,5 @@
+use rand::RngExt;
+// todo: better error handeling
 const FONT: [u8; 80] = [
 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -25,6 +27,7 @@ pub struct Chip8 {
     pub delay_timer: u8, // delay timer
     pub sound_timer: u8, // sound timer
     registers: [u8; 16], // 8-bit registers
+    pub keys: [bool; 16], // tracking wich keys are being held down (true) and which keys aren't (false)
 	pub refresh_display: bool // if true, display will be refreshed
 }
 impl Chip8 {
@@ -54,9 +57,10 @@ impl Chip8 {
         // set timer
         let sound_timer = 0u8;
         let delay_timer = 0u8;
-        let registers = [0u8; 16];
         // set registers to 0
+        let registers = [0u8; 16];
 		let refresh_display = false;
+		let keys = [false; 16];
 		// return full struct
 		Chip8 { 
 		    mem, 
@@ -67,6 +71,7 @@ impl Chip8 {
 			delay_timer, 
 			sound_timer,
 			registers,
+			keys,
 			refresh_display
 		}
     }
@@ -79,7 +84,7 @@ impl Chip8 {
         let second_nibble = ((instruction >> 8) & 0xF) as u8;
         let third_nibble = ((instruction >> 4) & 0xF) as u8;
         let fourth_nibble = (instruction & 0xF) as u8;
-        // run instructions
+        // decode run instructions
         match first_nibble {
             0x0 => {
                 if instruction == 0xE0 {
@@ -129,7 +134,7 @@ impl Chip8 {
             }
             0x7 => {
                 // add NN to vx
-                self.registers[second_nibble as usize] += (third_nibble << 4) | fourth_nibble;
+                self.registers[second_nibble as usize] = self.registers[second_nibble as usize].wrapping_add((third_nibble << 4) | fourth_nibble);
             }
             0x8 => {
                 // mathmatical and logical functions
@@ -207,6 +212,15 @@ impl Chip8 {
                 // set index register
                 self.i = ((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16);
             }
+            0xB => {
+                // jump with ofset NNN
+                self.pc = (((second_nibble as u16) << 8) | ((third_nibble as u16) << 4) | (fourth_nibble as u16)) + self.registers[0x0] as u16;
+            }
+            0xC => {
+                // VX = RANDOM_NUMBER & NN
+                let num = (third_nibble << 4) | fourth_nibble;
+                self.registers[second_nibble as usize] = rand::rng().random::<u8>() & num;
+            }
             0xD => {
                 // draw sprite to screen
                 let x_start = self.registers[second_nibble as usize] % 64;
@@ -216,6 +230,7 @@ impl Chip8 {
                 for j in 0..fourth_nibble {
                     let byte = self.mem[(self.i + j as u16) as usize];
                     let mut x = x_start;
+                    // loop trough each byte
                     for s in (0..=7).rev() {
                         if x == 64 {
                             break;
@@ -233,6 +248,100 @@ impl Chip8 {
                     y += 1;
                     if y == 32 {
                         break;
+                    }
+                }
+            }
+            0xE => {
+                // skip if key
+                match fourth_nibble {
+                    // jump if key in VX is not pressed
+                    0x1 => {
+                        if !self.keys[self.registers[second_nibble as usize] as usize] {
+                            self.pc += 2;
+                        }
+                    }
+                    0xE => {
+                        // jump if key in VX is pressed
+                        if self.keys[self.registers[second_nibble as usize] as usize] {
+                            self.pc += 2;
+                        }
+                    }
+                    _ => {
+                        eprintln!("unrecognised or unimplemented instruction: 0x{:x}", instruction);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            0xF => {
+                // misc. functions
+                match fourth_nibble {
+                    0x7 => {
+                        // VX = delay timer
+                        self.registers[second_nibble as usize] = self.delay_timer;
+                    }
+                    0x5 => {
+                        match third_nibble {
+                            0x1 => {
+                                // delay timer = VX
+                                self.delay_timer = self.registers[second_nibble as usize];
+                            }
+                            0x5 => {
+                                // store v0 to vx in i
+                                for i in 0usize..=second_nibble as usize {
+                                    self.mem[self.i as usize] = self.registers[i];
+                                    self.i += 1;
+                                }
+                            }
+                            0x6 => {
+                                // load mem into registers
+                                for i in 0usize..=second_nibble as usize {
+                                    self.registers[i] = self.mem[self.i as usize];
+                                    self.i += 1;
+                                }
+                            }
+                            _ => {
+                                eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    0x8 => {
+                        // set sound timer to VX
+                        self.sound_timer = self.registers[second_nibble as usize];
+                    }
+                    0xE => {
+                        // I += VX
+                        self.i += self.registers[second_nibble as usize] as u16;
+                    }
+                    0xA => {
+                        // get a key
+                        self.pc -= 2;
+                        for (i, j) in self.keys.iter().enumerate() {
+                            if *j {
+                                self.registers[second_nibble as usize] = i as u8;
+                                self.pc += 2;
+                            }
+                        }
+                    }
+                    0x3 => {
+                        let num_as_str = self.registers[second_nibble as usize].to_string();
+                        let mut res = String::new();
+                        if num_as_str.len() < 3 {
+                            for _ in 0..3-num_as_str.len() {
+                                res.push('0');
+                            }
+                        }
+                        res.push_str(&num_as_str);
+                        for (i, j) in res.as_bytes().iter().enumerate() {
+                            self.mem[self.i as usize + i] = *j-48; 
+                        }
+                    }
+                    0x9 => {
+                        self.i = self.registers[second_nibble as usize] as u16 * 5 + 80;
+                    }
+                    _ => {
+                        eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
+                        std::process::exit(1);
                     }
                 }
             }
