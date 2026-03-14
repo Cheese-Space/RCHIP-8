@@ -1,6 +1,6 @@
 mod chip8;
 use std::io;
-use std::{env, fs, process::ExitCode, fmt};
+use std::{env, fs, fmt};
 use crate::chip8::Chip8;
 use sdl3::event::Event;
 use sdl3::keyboard::{Keycode, Scancode};
@@ -12,6 +12,7 @@ pub enum EmulatorError {
     VSubsystem(sdl3::Error),
     Window(sdl3::video::WindowBuildError),
     Io{filename: String, err: io::Error},
+    Nofilename,
     ProgramTooLarge,
     EmptyReturnStack,
     InvalidInstruction(u16)
@@ -24,6 +25,7 @@ impl fmt::Debug for EmulatorError {
             Self::VSubsystem(err) => write!(f, "failed to init sdl's video subsystem: {}", err),
             Self::Window(err) => write!(f, "failed to create window: {}", err),
             Self::Io { filename, err } => write!(f, "failed to open {}: {}", filename, err),
+            Self::Nofilename => write!(f, "no filename provided"),
             Self::ProgramTooLarge => write!(f, "program is too large (limit is 3584 bytes)"),
             Self::EmptyReturnStack => write!(f, "tried to get return adress from empty return stack"),
             Self::InvalidInstruction(instruction) => write!(f, "invalid or unimplemented instruction: {}", instruction)
@@ -52,75 +54,82 @@ fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
         _ => ()
     }
 }
-fn main() -> ExitCode {
+fn main() -> Result<(), EmulatorError> {
     let filename = match env::args().nth(1) {
         Some(f) => f,
-        None => {
-            eprintln!("no filename provided!");
-            return ExitCode::FAILURE;
-        }
+        None => return Err(EmulatorError::Nofilename)
     };
     let buff = match fs::read(&filename) {
         Ok(b) => b,
-        Err(e) => {
-            eprintln!("failed to open {filename}: {}", e);
-            return ExitCode::FAILURE;
-        }
+        Err(err) => return Err(EmulatorError::Io { filename, err })
     };
-    let mut machine = Chip8::init(&buff); // load program and font into memory, sets registers and sets timers
-    let sdl_context = sdl3::init().unwrap();
-        let video_subsystem = sdl_context.video().unwrap();
-        let window = video_subsystem.window("RCHIP-8", 640, 320)
-            .position_centered()
-            .build()
-            .unwrap();
-        let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
-        let mut canvas = window.into_canvas();
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
-        let mut reset_timers = Instant::now();
-        'running: loop {
-            // poll for events
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit {..} |
-                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                        break 'running
-                    },
-                    Event::KeyDown {scancode: Some(code), ..} => {
-                        set_key(&mut machine, code, true);
-                    }
-                    Event::KeyUp {scancode: Some(code), ..} => {
-                        set_key(&mut machine, code, false);
-                    }
-                    _ => ()
+    let mut machine = match Chip8::init(&buff) { // load program and font into memory, sets registers and sets timers
+        Ok(m) => m,
+        Err(err) => return Err(err)
+    };
+    let sdl_context = match sdl3::init() {
+        Ok(c) => c,
+        Err(err) => return Err(EmulatorError::SdlInit(err))
+    };
+    let video_subsystem = match sdl_context.video() {
+        Ok(v) => v,
+        Err(err) => return Err(EmulatorError::VSubsystem(err))
+    };
+    let window = match video_subsystem.window("RCHIP-8", 640, 320)
+        .position_centered()
+        .build() {
+            Ok(w) => w,
+            Err(err) => return Err(EmulatorError::Window(err))
+    };
+    let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
+    let mut canvas = window.into_canvas();
+    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.clear();
+    let mut reset_timers = Instant::now();
+    'running: loop {
+        // poll for events
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit {..} |
+                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    break 'running
+                },
+                Event::KeyDown {scancode: Some(code), ..} => {
+                    set_key(&mut machine, code, true);
                 }
-            }
-            // set timers
-            if reset_timers.elapsed().as_secs_f64() >= 1 as f64 / 60 as f64 {
-                machine.delay_timer = machine.delay_timer.wrapping_sub(1);
-                machine.sound_timer = machine.sound_timer.wrapping_sub(1);
-                reset_timers = Instant::now();
-            }
-            machine.exec();
-            if machine.refresh_display {
-                canvas.clear();
-                for y in 0usize..32 {
-                    for x in 0usize..64 {
-                        let rect = Rect::new(x as i32 *10, y  as i32 *10, 10, 10);
-                        if machine.display[y][x] {
-                            canvas.set_draw_color(Color::RGB(255, 255, 255));
-                        }
-                        else {
-                            canvas.set_draw_color(Color::RGB(0, 0, 0));
-                        }
-                        canvas.fill_rect(rect).unwrap();
-                    }
+                Event::KeyUp {scancode: Some(code), ..} => {
+                    set_key(&mut machine, code, false);
                 }
-                canvas.present();
-                machine.refresh_display = false;
+                _ => ()
             }
-           std::thread::sleep(Duration::from_secs_f64(1 as f64 / 700 as f64));
         }
-    ExitCode::SUCCESS
+        // set timers
+        if reset_timers.elapsed().as_secs_f64() >= 1 as f64 / 60 as f64 {
+            machine.delay_timer = machine.delay_timer.wrapping_sub(1);
+            machine.sound_timer = machine.sound_timer.wrapping_sub(1);
+            reset_timers = Instant::now();
+        }
+        if let Err(err) = machine.exec() {
+            return Err(err);
+        }
+        if machine.refresh_display {
+            canvas.clear();
+            for y in 0usize..32 {
+                for x in 0usize..64 {
+                    let rect = Rect::new(x as i32 *10, y  as i32 *10, 10, 10);
+                    if machine.display[y][x] {
+                            canvas.set_draw_color(Color::RGB(255, 255, 255));
+                    }
+                    else {
+                            canvas.set_draw_color(Color::RGB(0, 0, 0));
+                    }
+                    canvas.fill_rect(rect).unwrap();
+                }
+            }
+            canvas.present();
+            machine.refresh_display = false;
+        }
+        std::thread::sleep(Duration::from_secs_f64(1 as f64 / 700 as f64));
+    }
+    Ok(())
 }

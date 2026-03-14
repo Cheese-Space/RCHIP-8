@@ -1,4 +1,5 @@
 use rand::RngExt;
+use crate::EmulatorError;
 // todo: better error handeling
 const FONT: [u8; 80] = [
 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -31,7 +32,7 @@ pub struct Chip8 {
 	pub refresh_display: bool // if true, display will be refreshed
 }
 impl Chip8 {
-    pub fn init(program: &[u8]) -> Chip8 {
+    pub fn init(program: &[u8]) -> Result<Chip8, EmulatorError> {
         // alocate 4 kb on the stack
         let mut mem = [0u8; 4096];
         // init display
@@ -39,8 +40,7 @@ impl Chip8 {
         // setup return_stack and check program len
         let return_stack: Vec<u16> = Vec::new();
         if 4096 - 512 < program.len() {
-            eprintln!("error: program is too large!");
-            std::process::exit(1);
+            return Err(EmulatorError::ProgramTooLarge);
         }
         // load program into ram, first 512 bytes should be free for compatibility
         for (i, j) in program.iter().enumerate() {
@@ -62,7 +62,7 @@ impl Chip8 {
 		let refresh_display = false;
 		let keys = [false; 16];
 		// return full struct
-		Chip8 { 
+		Ok(Chip8 { 
 		    mem, 
 			display, 
 			return_stack, 
@@ -73,9 +73,9 @@ impl Chip8 {
 			registers,
 			keys,
 			refresh_display
-		}
+		})
     }
-    pub fn exec(&mut self) {
+    pub fn exec(&mut self) -> Result<(), EmulatorError> {
         // one instruction is 2 8 bit numbers
         let instruction = ((self.mem[self.pc as usize] as u16) << 8) | self.mem[self.pc as usize + 1] as u16;
         self.pc += 2; // increment pc to next instruction
@@ -98,7 +98,10 @@ impl Chip8 {
                 }
                 else {
                     // return for subroutine
-                    self.pc = self.return_stack.pop().unwrap();
+                    self.pc = match self.return_stack.pop() {
+                        Some(addr) => addr,
+                        None => return Err(EmulatorError::EmptyReturnStack)
+                    }
                 }
             }
             0x1 => {
@@ -197,8 +200,7 @@ impl Chip8 {
                         self.registers[0xF] = self.registers[second_nibble as usize] & 0x1;
                     }
                     _ => {
-                        eprintln!("unrecognised instruction: 0x{:x}", instruction);
-                        std::process::exit(1);
+                        return Err(EmulatorError::InvalidInstruction(instruction));
                     }
                 }
             }
@@ -267,8 +269,7 @@ impl Chip8 {
                         }
                     }
                     _ => {
-                        eprintln!("unrecognised or unimplemented instruction: 0x{:x}", instruction);
-                        std::process::exit(1);
+                        return Err(EmulatorError::InvalidInstruction(instruction));
                     }
                 }
             }
@@ -300,8 +301,7 @@ impl Chip8 {
                                 }
                             }
                             _ => {
-                                eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
-                                std::process::exit(1);
+                                return Err(EmulatorError::InvalidInstruction(instruction));
                             }
                         }
                     }
@@ -340,15 +340,14 @@ impl Chip8 {
                         self.i = self.registers[second_nibble as usize] as u16 * 5 + 80;
                     }
                     _ => {
-                        eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
-                        std::process::exit(1);
+                        return Err(EmulatorError::InvalidInstruction(instruction));
                     }
                 }
             }
             _ => {
-                eprintln!("unrecognised or unimplemented instruction: 0x{:x}{:x}{:x}{:x}", first_nibble, second_nibble, third_nibble, fourth_nibble);
-                std::process::exit(1);
+                return Err(EmulatorError::InvalidInstruction(instruction));
             }
         }
+        Ok(())
     }
 }
