@@ -28,7 +28,7 @@ impl fmt::Debug for EmulatorError {
             Self::Nofilename => write!(f, "no filename provided"),
             Self::ProgramTooLarge => write!(f, "program is too large (limit is 3584 bytes)"),
             Self::EmptyReturnStack => write!(f, "tried to get return adress from empty return stack"),
-            Self::InvalidInstruction(instruction) => write!(f, "invalid or unimplemented instruction: {}", instruction)
+            Self::InvalidInstruction(instruction) => write!(f, "invalid or unimplemented instruction: 0x{:x}", instruction)
         }
     }
 }
