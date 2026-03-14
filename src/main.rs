@@ -5,7 +5,7 @@ use sdl3::event::Event;
 use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
 use sdl3::rect::Rect;
-use std::time::Duration;
+use std::time::{Instant, Duration};
 fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
     match code {
         Scancode::_1 => machine.keys[0x1] = pressed,
@@ -52,7 +52,8 @@ fn main() -> ExitCode {
         let mut event_pump = sdl_context.event_pump().unwrap();
         let mut canvas = window.into_canvas();
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();  
+        canvas.clear();
+        let mut reset_timers = Instant::now();
         'running: loop {
             // poll for events
             for event in event_pump.poll_iter() {
@@ -71,17 +72,10 @@ fn main() -> ExitCode {
                 }
             }
             // set timers
-            if machine.delay_timer == 0 {
-                machine.delay_timer = 255;
-            }
-            else {
-                machine.delay_timer -= 1;
-            }
-            if machine.sound_timer == 0 {
-                machine.sound_timer = 255;
-            }
-            else {
-                machine.sound_timer -= 1;
+            if reset_timers.elapsed().as_secs_f64() >= 1 as f64 / 60 as f64 {
+                machine.delay_timer = machine.delay_timer.wrapping_sub(1);
+                machine.sound_timer = machine.sound_timer.wrapping_sub(1);
+                reset_timers = Instant::now();
             }
             machine.exec();
             if machine.refresh_display {
@@ -101,8 +95,7 @@ fn main() -> ExitCode {
                 canvas.present();
                 machine.refresh_display = false;
             }
-            // ^todo: other logic
-            std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 700));
+           std::thread::sleep(Duration::from_secs_f64(1 as f64 / 700 as f64));
         }
     ExitCode::SUCCESS
 }
