@@ -7,11 +7,12 @@ use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
 use sdl3::rect::Rect;
 use std::time::{Instant, Duration};
+use std::path::PathBuf;
 pub enum EmulatorError {
     SdlInit(sdl3::Error),
     VSubsystem(sdl3::Error),
     Window(sdl3::video::WindowBuildError),
-    Io{filename: String, err: io::Error},
+    Io{filename: PathBuf, err: io::Error},
     Nofilename,
     ProgramTooLarge,
     EmptyReturnStack,
@@ -24,7 +25,7 @@ impl fmt::Debug for EmulatorError {
             Self::SdlInit(err) => write!(f, "failed to init sdl: {}", err),
             Self::VSubsystem(err) => write!(f, "failed to init sdl's video subsystem: {}", err),
             Self::Window(err) => write!(f, "failed to create window: {}", err),
-            Self::Io { filename, err } => write!(f, "failed to open {}: {}", filename, err),
+            Self::Io { filename, err } => write!(f, "failed to open {}: {}", filename.display(), err),
             Self::Nofilename => write!(f, "no filename provided"),
             Self::ProgramTooLarge => write!(f, "program is too large (limit is 3584 bytes)"),
             Self::EmptyReturnStack => write!(f, "tried to get return adress from empty return stack"),
@@ -55,18 +56,15 @@ fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
     }
 }
 fn main() -> Result<(), EmulatorError> {
-    let filename = match env::args().nth(1) {
-        Some(f) => f,
+    let path = match env::args().nth(1) {
+        Some(f) => PathBuf::from(f),
         None => return Err(EmulatorError::Nofilename)
     };
-    let buff = match fs::read(&filename) {
+    let buff = match fs::read(&path) {
         Ok(b) => b,
-        Err(err) => return Err(EmulatorError::Io { filename, err })
+        Err(err) => return Err(EmulatorError::Io { filename: path, err })
     };
-    let mut machine = match Chip8::init(&buff) { // load program and font into memory, sets registers and sets timers
-        Ok(m) => m,
-        Err(err) => return Err(err)
-    };
+    let mut machine = Chip8::init(&buff)?;
     let sdl_context = match sdl3::init() {
         Ok(c) => c,
         Err(err) => return Err(EmulatorError::SdlInit(err))
@@ -75,8 +73,10 @@ fn main() -> Result<(), EmulatorError> {
         Ok(v) => v,
         Err(err) => return Err(EmulatorError::VSubsystem(err))
     };
-    let window = match video_subsystem.window("RCHIP-8", 640, 320)
+    let title = format!("RCHIP-8 - {}", path.file_name().unwrap().display());
+    let window = match video_subsystem.window(&title, 640, 320)
         .position_centered()
+        .input_grabbed()
         .build() {
             Ok(w) => w,
             Err(err) => return Err(EmulatorError::Window(err))
@@ -109,9 +109,7 @@ fn main() -> Result<(), EmulatorError> {
             machine.sound_timer = machine.sound_timer.wrapping_sub(1);
             reset_timers = Instant::now();
         }
-        if let Err(err) = machine.exec() {
-            return Err(err);
-        }
+        machine.exec()?;
         if machine.refresh_display {
             canvas.clear();
             for y in 0usize..32 {
