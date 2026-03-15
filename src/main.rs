@@ -7,6 +7,7 @@ use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
 use sdl3::rect::Rect;
 use std::time::{Instant, Duration};
+use sdl3::messagebox;
 use std::path::PathBuf;
 pub enum EmulatorError {
     SdlInit(sdl3::Error),
@@ -19,7 +20,7 @@ pub enum EmulatorError {
     InvalidInstruction(u16)
 }
 // displayed when returned from main
-impl fmt::Debug for EmulatorError {
+impl fmt::Display for EmulatorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SdlInit(err) => write!(f, "failed to init sdl: {}", err),
@@ -31,6 +32,11 @@ impl fmt::Debug for EmulatorError {
             Self::EmptyReturnStack => write!(f, "tried to get return adress from empty return stack"),
             Self::InvalidInstruction(instruction) => write!(f, "invalid or unimplemented instruction: 0x{:x}", instruction)
         }
+    }
+}
+impl fmt::Debug for EmulatorError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
@@ -109,7 +115,10 @@ fn main() -> Result<(), EmulatorError> {
             machine.sound_timer = machine.sound_timer.wrapping_sub(1);
             reset_timers = Instant::now();
         }
-        machine.exec()?;
+        if let Err(error) = machine.exec() {
+            let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::ERROR, "error", &format!("error: {error}"), canvas.window());
+            return Err(error);
+        }
         if machine.refresh_display {
             canvas.clear();
             for y in 0usize..32 {
