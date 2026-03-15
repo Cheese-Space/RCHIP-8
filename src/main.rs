@@ -82,7 +82,6 @@ fn main() -> Result<(), EmulatorError> {
     let title = format!("RCHIP-8 - {}", path.file_name().unwrap().display());
     let window = match video_subsystem.window(&title, 640, 320)
         .position_centered()
-        .input_grabbed()
         .build() {
             Ok(w) => w,
             Err(err) => return Err(EmulatorError::Window(err))
