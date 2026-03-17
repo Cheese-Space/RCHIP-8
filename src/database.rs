@@ -1,3 +1,6 @@
+use sha1_smol as sha1;
+use std::collections::HashMap;
+use std::fmt;
 /*
 files taken from: https://github.com/chip-8/chip-8-database
 license:
@@ -18,4 +21,31 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 */
 const ROMS: &str = include_str!("../assets/programs.json");
 const SHA1_HASHES: &str = include_str!("../assets/sha1-hashes.json");
-pub fn check_hash(program: &[u8]) {}
+pub enum Compatability {
+    Compatible,
+    NotCompatible,
+    NotInList
+}
+impl fmt::Display for Compatability {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotInList => write!(f, "warning: program is not in rom database so compatability is not guaranteed"),
+            Self::NotCompatible => write!(f, "warning: program is not compatible with the original chip-8\nthe program may run, but not correctly"),
+            _ => unreachable!() // compatible never needs to be displayed
+        }
+    }
+}
+pub fn check_compatability(program: &[u8]) -> Compatability {
+    let hash = sha1::Sha1::from(program).digest().to_string();
+    let sha1_hashes: HashMap<String, usize> = serde_json::from_str(SHA1_HASHES).expect("sha1-hashes.json should be correct json");
+    let rom_index = match sha1_hashes.get(&hash) {
+        Some(i) => *i,
+        None => return Compatability::NotInList,
+    };
+    let roms: serde_json::Value = serde_json::from_str(ROMS).expect("programs.json should be valid json");
+    let platforms = roms[rom_index][hash]["platforms"].as_array().expect("platform list should be a valid array");
+    if platforms[0].as_str().expect("platforms should contain an array of strings") != "originalChip8" {
+        return Compatability::NotCompatible;
+    }
+    Compatability::Compatible
+}
