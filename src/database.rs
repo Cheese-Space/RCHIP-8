@@ -31,7 +31,7 @@ impl fmt::Display for Compatability {
         match self {
             Self::NotInList => write!(f, "warning: program is not in rom database so compatability is not guaranteed"),
             Self::NotCompatible => write!(f, "warning: program is not compatible with the original chip-8\nthe program may run, but not correctly"),
-            _ => unreachable!() // compatible never needs to be displayed
+            _ => unreachable!("'compatible' should never be displayed")
         }
     }
 }
