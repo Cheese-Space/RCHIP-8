@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 rand = "0.10.0"
 sdl3 = { version = "0.17.3", features = ["build-from-source-static"] }
+serde_json = "1.0.149"
+sha1_smol = "1.0.1"
