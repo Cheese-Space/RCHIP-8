@@ -1,7 +1,9 @@
 mod chip8;
+mod database;
 use std::io;
 use std::{env, fs, fmt};
 use crate::chip8::Chip8;
+use database::Compatability;
 use sdl3::event::Event;
 use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
@@ -86,6 +88,11 @@ fn main() -> Result<(), EmulatorError> {
             Ok(w) => w,
             Err(err) => return Err(EmulatorError::Window(err))
     };
+    let res = database::check_compatability(&buff);
+    if let Compatability::NotCompatible | Compatability::NotInList = res {
+        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "warning", &res.to_string(), &window);
+        eprintln!("{res}");
+    }
     let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
     let mut canvas = window.into_canvas();
     canvas.set_draw_color(Color::RGB(0, 0, 0));
@@ -98,7 +105,7 @@ fn main() -> Result<(), EmulatorError> {
                 Event::Quit {..} |
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
-                },
+                }
                 Event::KeyDown {scancode: Some(code), ..} => {
                     set_key(&mut machine, code, true);
                 }

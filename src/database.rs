@@ -43,7 +43,7 @@ pub fn check_compatability(program: &[u8]) -> Compatability {
         None => return Compatability::NotInList,
     };
     let roms: serde_json::Value = serde_json::from_str(ROMS).expect("programs.json should be valid json");
-    let platforms = roms[rom_index][hash]["platforms"].as_array().expect("platform list should be a valid array");
+    let platforms = roms[rom_index]["roms"][&hash]["platforms"].as_array().expect("platform list should be a valid array");
     if platforms[0].as_str().expect("platforms should contain an array of strings") != "originalChip8" {
         return Compatability::NotCompatible;
     }
