@@ -3,7 +3,7 @@ mod database;
 use std::io;
 use std::{env, fs, fmt};
 use crate::chip8::Chip8;
-use database::Compatability;
+use database::Compatibility;
 use sdl3::event::Event;
 use sdl3::keyboard::{Keycode, Scancode};
 use sdl3::pixels::Color;
@@ -89,8 +89,8 @@ fn main() -> Result<(), EmulatorError> {
             Err(err) => return Err(EmulatorError::Window(err))
     };
     let res = database::check_compatability(&buff);
-    if let Compatability::NotCompatible | Compatability::NotInList = res {
-        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "warning", &res.to_string(), &window);
+    if let Compatibility::NotCompatible | Compatibility::NotInList = res {
+        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatability warning", &res.to_string(), &window);
         eprintln!("{res}");
     }
     let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");

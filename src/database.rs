@@ -21,12 +21,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 */
 const ROMS: &str = include_str!("../assets/programs.json");
 const SHA1_HASHES: &str = include_str!("../assets/sha1-hashes.json");
-pub enum Compatability {
+pub enum Compatibility {
     Compatible,
     NotCompatible,
     NotInList
 }
-impl fmt::Display for Compatability {
+impl fmt::Display for Compatibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotInList => write!(f, "warning: program is not in rom database so compatability is not guaranteed"),
@@ -35,17 +35,17 @@ impl fmt::Display for Compatability {
         }
     }
 }
-pub fn check_compatability(program: &[u8]) -> Compatability {
+pub fn check_compatability(program: &[u8]) -> Compatibility {
     let hash = sha1::Sha1::from(program).digest().to_string();
     let sha1_hashes: HashMap<String, usize> = serde_json::from_str(SHA1_HASHES).expect("sha1-hashes.json should be correct json");
     let rom_index = match sha1_hashes.get(&hash) {
         Some(i) => *i,
-        None => return Compatability::NotInList,
+        None => return Compatibility::NotInList,
     };
     let roms: serde_json::Value = serde_json::from_str(ROMS).expect("programs.json should be valid json");
     let platforms = roms[rom_index]["roms"][&hash]["platforms"].as_array().expect("platform list should be a valid array");
     if platforms[0].as_str().expect("platforms should contain an array of strings") != "originalChip8" {
-        return Compatability::NotCompatible;
+        return Compatibility::NotCompatible;
     }
-    Compatability::Compatible
+    Compatibility::Compatible
 }
