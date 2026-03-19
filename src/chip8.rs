@@ -96,12 +96,15 @@ impl Chip8 {
                     }
                     self.refresh_display = true;
                 }
-                else {
+                else if instruction == 0x00EE {
                     // return for subroutine
                     self.pc = match self.return_stack.pop() {
                         Some(addr) => addr,
                         None => return Err(EmulatorError::EmptyReturnStack)
                     }
+                }
+                else {
+                    return Err(EmulatorError::InvalidInstruction(instruction));
                 }
             }
             0x1 => {
