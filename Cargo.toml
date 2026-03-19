@@ -2,7 +2,7 @@
 name = "RCHIP-8"
 version = "0.1.0"
 edition = "2024"
-license = "GPL-3.0-only"
+license = "GPL-3.0-only AND MIT"
 description = "chip-8 emulator written in rust"
 repository = "https://github.com/Cheese-Space/RCHIP-8"
 categories = ["emulators"]
