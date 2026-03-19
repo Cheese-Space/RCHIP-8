@@ -89,7 +89,7 @@ fn main() -> Result<(), EmulatorError> {
     };
     let res = database::check_compatability(&buff);
     if let Compatibility::NotCompatible | Compatibility::NotInList = res {
-        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatability warning", &res.to_string(), &window);
+        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatibility warning", &res.to_string(), &window);
         eprintln!("{res}");
     }
     let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
