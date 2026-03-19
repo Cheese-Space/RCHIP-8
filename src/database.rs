@@ -29,7 +29,7 @@ pub enum Compatibility {
 impl fmt::Display for Compatibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotInList => write!(f, "warning: program is not in rom database so compatability is not guaranteed"),
+            Self::NotInList => write!(f, "warning: program is not in rom database so compatibility is not guaranteed"),
             Self::NotCompatible => write!(f, "warning: program is not compatible with the original chip-8\nthe program may run, but not correctly"),
             _ => unreachable!("'compatible' should never be displayed")
         }
