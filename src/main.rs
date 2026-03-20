@@ -14,6 +14,7 @@ use sdl3::audio::{AudioCallback, AudioFormat, AudioSpec, AudioStream};
 pub enum EmulatorError {
     SdlInit(sdl3::Error),
     VSubsystem(sdl3::Error),
+    Audio(sdl3::Error),
     Window(sdl3::video::WindowBuildError),
     Io{filename: String, err: io::Error},
     Nofilename,
@@ -27,6 +28,7 @@ impl fmt::Display for EmulatorError {
         match self {
             Self::SdlInit(err) => write!(f, "failed to init sdl: {}", err),
             Self::VSubsystem(err) => write!(f, "failed to init sdl's video subsystem: {}", err),
+            Self::Audio(err) => write!(f, "failed to init audio: {}", err),
             Self::Window(err) => write!(f, "failed to create window: {}", err),
             Self::Io { filename, err } => write!(f, "failed to open {}: {}", filename, err),
             Self::Nofilename => write!(f, "no filename provided"),
@@ -79,18 +81,24 @@ fn main() -> Result<(), EmulatorError> {
         Ok(v) => v,
         Err(err) => return Err(EmulatorError::VSubsystem(err))
     };
-    let audio_subsystem = sdl_context.audio().unwrap();
+    let audio_subsystem = match sdl_context.audio() {
+        Ok(a) => a,
+        Err(e) => return Err(EmulatorError::Audio(e))
+    };
     let source_freq = 44100;
     let source_spec = AudioSpec {
         freq: Some(source_freq),
         channels: Some(1),                      // mono
         format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
     };
-    let device = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
+    let device = match audio_subsystem.open_playback_stream(&source_spec, SquareWave {
         phase_inc: 440.0 / source_freq as f32,
         phase: 0.0,
         volume: 0.05
-    }).unwrap();
+    }) {
+        Ok(d) => d,
+        Err(e) => return Err(EmulatorError::Audio(e))
+    };
     let mut window = match video_subsystem.window("RCHIP-8", 640, 320)
         .position_centered()
         .build() {
