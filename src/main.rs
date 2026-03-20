@@ -5,7 +5,7 @@ use std::{env, fs, fmt};
 use crate::chip8::Chip8;
 use database::Compatibility;
 use sdl3::event::Event;
-use sdl3::keyboard::{Keycode, Scancode};
+use sdl3::keyboard::Keycode;
 use sdl3::pixels::Color;
 use sdl3::rect::Rect;
 use std::time::{Instant, Duration};
