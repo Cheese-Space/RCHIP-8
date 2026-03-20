@@ -19,11 +19,13 @@ AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABL
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-const ROMS: &str = include_str!("../assets/programs.json");
-const SHA1_HASHES: &str = include_str!("../assets/sha1-hashes.json");
+pub const ROMS: &str = include_str!("../assets/programs.json");
+pub const SHA1_HASHES: &str = include_str!("../assets/sha1-hashes.json");
+#[derive(Default)]
 pub enum Compatibility {
     Compatible,
     NotCompatible,
+    #[default]
     NotInList
 }
 impl fmt::Display for Compatibility {
@@ -34,6 +36,11 @@ impl fmt::Display for Compatibility {
             _ => unreachable!("'compatible' should never be displayed")
         }
     }
+}
+#[derive(Default)]
+pub struct RomInfo {
+    pub title: String,
+    pub compatibility: Compatibility
 }
 pub fn check_compatability(program: &[u8]) -> Compatibility {
     let hash = sha1::Sha1::from(program).digest().to_string();
