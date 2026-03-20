@@ -6,7 +6,7 @@ use crate::database::ROMS;
 use crate::database::SHA1_HASHES;
 use sha1_smol as sha1;
 use std::collections::HashMap;
-// todo: better error handeling
+use sdl3::keyboard::Scancode;
 const FONT: [u8; 80] = [
 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -83,6 +83,28 @@ impl Chip8 {
 			refresh_display,
 			info
 		})
+    }
+    pub fn set_key(&mut self, code: Scancode, pressed: bool) {
+        // uses the layout of the cosmac vip and hp 48
+        match code {
+            Scancode::_1 => self.keys[0x1] = pressed,
+            Scancode::_2 => self.keys[0x2] = pressed,
+            Scancode::_3 => self.keys[0x3] = pressed,
+            Scancode::_4 => self.keys[0xC] = pressed,
+            Scancode::Q => self.keys[0x4] = pressed,
+            Scancode::W => self.keys[0x5] = pressed,
+            Scancode::E => self.keys[0x6] = pressed,
+            Scancode::R => self.keys[0xD] = pressed,
+            Scancode::A => self.keys[0x7] = pressed,
+            Scancode::S => self.keys[0x8] = pressed,
+            Scancode::D => self.keys[0x9] = pressed,
+            Scancode::F => self.keys[0xE] = pressed,
+            Scancode::Z => self.keys[0xA] = pressed,
+            Scancode::X => self.keys[0x0] = pressed,
+            Scancode::C => self.keys[0xB] = pressed,
+            Scancode::V => self.keys[0xF] = pressed,
+            _ => ()
+        }
     }
     pub fn get_info(&mut self, program: &[u8]) {
         let hash = sha1::Sha1::from(program).digest().to_string();

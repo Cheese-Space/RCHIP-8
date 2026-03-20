@@ -40,28 +40,6 @@ impl fmt::Debug for EmulatorError {
         fmt::Display::fmt(self, f)
     }
 }
-fn set_key(machine: &mut Chip8, code: Scancode, pressed: bool) {
-    // uses the layout of the cosmac vip and hp 48
-    match code {
-        Scancode::_1 => machine.keys[0x1] = pressed,
-        Scancode::_2 => machine.keys[0x2] = pressed,
-        Scancode::_3 => machine.keys[0x3] = pressed,
-        Scancode::_4 => machine.keys[0xC] = pressed,
-        Scancode::Q => machine.keys[0x4] = pressed,
-        Scancode::W => machine.keys[0x5] = pressed,
-        Scancode::E => machine.keys[0x6] = pressed,
-        Scancode::R => machine.keys[0xD] = pressed,
-        Scancode::A => machine.keys[0x7] = pressed,
-        Scancode::S => machine.keys[0x8] = pressed,
-        Scancode::D => machine.keys[0x9] = pressed,
-        Scancode::F => machine.keys[0xE] = pressed,
-        Scancode::Z => machine.keys[0xA] = pressed,
-        Scancode::X => machine.keys[0x0] = pressed,
-        Scancode::C => machine.keys[0xB] = pressed,
-        Scancode::V => machine.keys[0xF] = pressed,
-        _ => ()
-    }
-}
 fn main() -> Result<(), EmulatorError> {
     let path = match env::args().nth(1) {
         Some(f) => f,
@@ -106,10 +84,10 @@ fn main() -> Result<(), EmulatorError> {
                     break 'running
                 }
                 Event::KeyDown {scancode: Some(code), ..} => {
-                    set_key(&mut machine, code, true);
+                    machine.set_key(code, true);
                 }
                 Event::KeyUp {scancode: Some(code), ..} => {
-                    set_key(&mut machine, code, false);
+                    machine.set_key( code, false);
                 }
                 _ => ()
             }
