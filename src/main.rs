@@ -80,18 +80,18 @@ fn main() -> Result<(), EmulatorError> {
         Ok(v) => v,
         Err(err) => return Err(EmulatorError::VSubsystem(err))
     };
-    let title = format!("RCHIP-8 - {}", path);
-    let window = match video_subsystem.window(&title, 640, 320)
+    let mut window = match video_subsystem.window("RCHIP-8", 640, 320)
         .position_centered()
         .build() {
             Ok(w) => w,
             Err(err) => return Err(EmulatorError::Window(err))
     };
-    let res = database::check_compatability(&buff);
-    if let Compatibility::NotCompatible | Compatibility::NotInList = res {
-        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatibility warning", &res.to_string(), &window);
-        eprintln!("{res}");
+    machine.get_info(&buff);
+    if let Compatibility::NotCompatible | Compatibility::NotInList = machine.info.compatibility {
+        let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatibility warning", &machine.info.compatibility.to_string(), &window);
+        eprintln!("{}", machine.info.compatibility);
     }
+    window.set_title(&format!("RCHIP-8 - {}", machine.info.title)).expect("title shouldn't contain null character");
     let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
     let mut canvas = window.into_canvas();
     canvas.set_draw_color(Color::RGB(0, 0, 0));

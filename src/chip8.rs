@@ -1,5 +1,11 @@
 use rand::RngExt;
 use crate::EmulatorError;
+use crate::database::Compatibility;
+use crate::database::RomInfo;
+use crate::database::ROMS;
+use crate::database::SHA1_HASHES;
+use sha1_smol as sha1;
+use std::collections::HashMap;
 // todo: better error handeling
 const FONT: [u8; 80] = [
 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -29,7 +35,8 @@ pub struct Chip8 {
     pub sound_timer: u8, // sound timer
     registers: [u8; 16], // 8-bit registers
     pub keys: [bool; 16], // tracking wich keys are being held down (true) and which keys aren't (false)
-	pub refresh_display: bool // if true, display will be refreshed
+	pub refresh_display: bool, // if true, display will be refreshed
+	pub info: RomInfo // info about the rom
 }
 impl Chip8 {
     pub fn init(program: &[u8]) -> Result<Chip8, EmulatorError> {
@@ -61,6 +68,7 @@ impl Chip8 {
         let registers = [0u8; 16];
 		let refresh_display = false;
 		let keys = [false; 16];
+		let info = RomInfo::default();
 		// return full struct
 		Ok(Chip8 { 
 		    mem, 
@@ -72,8 +80,28 @@ impl Chip8 {
 			sound_timer,
 			registers,
 			keys,
-			refresh_display
+			refresh_display,
+			info
 		})
+    }
+    pub fn get_info(&mut self, program: &[u8]) {
+        let hash = sha1::Sha1::from(program).digest().to_string();
+        let sha1_hashes: HashMap<String, usize> = serde_json::from_str(SHA1_HASHES).expect("sha1-hashes.json should be correct json");
+        let rom_index = match sha1_hashes.get(&hash) {
+            Some(i) => *i,
+            None => {
+                self.info.title = "unknown".into();
+                return; // by default, compatibility is equal to NotInList, so no need to set it here
+            }
+        };
+        let roms: serde_json::Value = serde_json::from_str(ROMS).expect("programs.json should be valid json");
+        self.info.title = roms[rom_index]["title"].to_string();
+        let platforms = roms[rom_index]["roms"][&hash]["platforms"].as_array().expect("platform list should be a valid array");
+        if platforms[0].as_str().expect("platforms should contain an array of strings") != "originalChip8" {
+            self.info.compatibility = Compatibility::NotCompatible;
+            return;
+        }
+        self.info.compatibility = Compatibility::Compatible;
     }
     pub fn exec(&mut self) -> Result<(), EmulatorError> {
         // one instruction is 2 8 bit numbers

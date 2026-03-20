@@ -42,17 +42,3 @@ pub struct RomInfo {
     pub title: String,
     pub compatibility: Compatibility
 }
-pub fn check_compatability(program: &[u8]) -> Compatibility {
-    let hash = sha1::Sha1::from(program).digest().to_string();
-    let sha1_hashes: HashMap<String, usize> = serde_json::from_str(SHA1_HASHES).expect("sha1-hashes.json should be correct json");
-    let rom_index = match sha1_hashes.get(&hash) {
-        Some(i) => *i,
-        None => return Compatibility::NotInList,
-    };
-    let roms: serde_json::Value = serde_json::from_str(ROMS).expect("programs.json should be valid json");
-    let platforms = roms[rom_index]["roms"][&hash]["platforms"].as_array().expect("platform list should be a valid array");
-    if platforms[0].as_str().expect("platforms should contain an array of strings") != "originalChip8" {
-        return Compatibility::NotCompatible;
-    }
-    Compatibility::Compatible
-}
