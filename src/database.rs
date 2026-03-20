@@ -1,5 +1,3 @@
-use sha1_smol as sha1;
-use std::collections::HashMap;
 use std::fmt;
 /*
 files taken from: https://github.com/chip-8/chip-8-database
