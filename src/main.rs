@@ -10,6 +10,7 @@ use sdl3::pixels::Color;
 use sdl3::rect::Rect;
 use std::time::{Instant, Duration};
 use sdl3::messagebox;
+use sdl3::audio::{AudioCallback, AudioFormat, AudioSpec, AudioStream};
 pub enum EmulatorError {
     SdlInit(sdl3::Error),
     VSubsystem(sdl3::Error),
@@ -40,6 +41,26 @@ impl fmt::Debug for EmulatorError {
         fmt::Display::fmt(self, f)
     }
 }
+struct SquareWave {
+    phase_inc: f32,
+    phase: f32,
+    volume: f32
+}
+impl AudioCallback<f32> for SquareWave {
+    fn callback(&mut self, stream: &mut AudioStream, requested: i32) {
+        let mut out = Vec::<f32>::with_capacity(requested as usize);
+        // Generate a square wave
+        for _ in 0..requested {
+            out.push(if self.phase <= 0.5 {
+                self.volume
+            } else {
+                -self.volume
+            });
+            self.phase = (self.phase + self.phase_inc) % 1.0;
+        }
+        let _ = stream.put_data_f32(&out);
+    }
+}
 fn main() -> Result<(), EmulatorError> {
     let path = match env::args().nth(1) {
         Some(f) => f,
@@ -58,6 +79,18 @@ fn main() -> Result<(), EmulatorError> {
         Ok(v) => v,
         Err(err) => return Err(EmulatorError::VSubsystem(err))
     };
+    let audio_subsystem = sdl_context.audio().unwrap();
+    let source_freq = 44100;
+    let source_spec = AudioSpec {
+        freq: Some(source_freq),
+        channels: Some(1),                      // mono
+        format: Some(AudioFormat::f32_sys())    // floating 32 bit samples
+    };
+    let device = audio_subsystem.open_playback_stream(&source_spec, SquareWave {
+        phase_inc: 440.0 / source_freq as f32,
+        phase: 0.0,
+        volume: 0.05
+    }).unwrap();
     let mut window = match video_subsystem.window("RCHIP-8", 640, 320)
         .position_centered()
         .build() {
@@ -69,6 +102,7 @@ fn main() -> Result<(), EmulatorError> {
         let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::WARNING, "compatibility warning", &machine.info.compatibility.to_string(), &window);
         eprintln!("{}", machine.info.compatibility);
     }
+    window.set_keyboard_grab(true);
     window.set_title(&format!("RCHIP-8 - {}", machine.info.title)).expect("title shouldn't contain null character");
     let mut event_pump = sdl_context.event_pump().expect("no other event_pump instance should be alive");
     let mut canvas = window.into_canvas();
@@ -94,9 +128,16 @@ fn main() -> Result<(), EmulatorError> {
         }
         // set timers
         if reset_timers.elapsed().as_secs_f64() >= 1 as f64 / 60 as f64 {
-            machine.delay_timer = machine.delay_timer.wrapping_sub(1);
-            machine.sound_timer = machine.sound_timer.wrapping_sub(1);
+            machine.delay_timer = machine.delay_timer.saturating_sub(1);
+            machine.sound_timer = machine.sound_timer.saturating_sub(1);
             reset_timers = Instant::now();
+        }
+        // check audio
+        if machine.sound_timer == 0 {
+            let _ = device.pause();
+        }
+        else {
+            let _ = device.resume();
         }
         if let Err(error) = machine.exec() {
             let _ = messagebox::show_simple_message_box(messagebox::MessageBoxFlag::ERROR, "error", &format!("error: {error}"), canvas.window());
